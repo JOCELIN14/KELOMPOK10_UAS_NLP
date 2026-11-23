@@ -287,10 +287,10 @@ def scenario_E(df, col, idx_tr, idx_te, tag):
     res = {}
     Xf = nonContent_features(df[col])
     m = HistGradientBoostingClassifier(random_state=SEED).fit(Xf[idx_tr], y[idx_tr])
-    res[f"E1 fitur non-isi ({tag})"] = metrics(y[idx_te], m.predict(Xf[idx_te]))
+    res[f"D. Probe fitur non-isi  ({tag})"] = metrics(y[idx_te], m.predict(Xf[idx_te]))
     ht = df[col].map(head_tail)
     p = make_pipe(max_features=20000).fit(ht.iloc[idx_tr], y[idx_tr])
-    res[f"E2 5 kata awal/akhir ({tag})"] = metrics(y[idx_te], p.predict(ht.iloc[idx_te]))
+    res[f"E. Probe 5 kata awal/akhir  ({tag})"] = metrics(y[idx_te], p.predict(ht.iloc[idx_te]))
     return res
 
 
@@ -392,11 +392,11 @@ def main():
         ext = pd.DataFrame({"t": ext[tc].astype(str).map(clean_text), "y": ext[lc].map(to_bin)}).dropna()
         ext["y"] = ext["y"].astype(int)
         pD = Bs.predict(ext["t"]); mD = metrics(ext["y"], pD); mD["ci"] = boot_ci(ext["y"], pD)
-        table.append(("D. Uji eksternal (media sosial)", mD))
-        rD, ps_D = calib_report(ext["y"].values, ext["t"], Bs, vec, cals, "D (eksternal)"); cal_rows += rD
-        print(f"\n[D] {len(ext)} teks eksternal; proporsi hoaks = {ext['y'].mean():.2f}")
+        table.append(("X. Uji eksternal (media sosial, opsional)", mD))
+        rD, ps_D = calib_report(ext["y"].values, ext["t"], Bs, vec, cals, "X (eksternal)"); cal_rows += rD
+        print(f"\n[X] {len(ext)} teks eksternal; proporsi hoaks = {ext['y'].mean():.2f}")
     else:
-        print("\n[lewati D] file --external tidak diberikan")
+        print("\n[lewati X] file --external tidak diberikan")
 
     # MENJALANKAN UJI FITUR NON ISI PADA DATA MENTAH DAN BERSIH 
     E = {}
@@ -420,8 +420,8 @@ def main():
         if "cv" in m: row["CV5 Akurasi"] = f"{m['cv'][0]:.2f} ± {m['cv'][1]:.2f}"
         if name.startswith("B*"):
             r = cal_pl[("B* (uji internal)", "Platt")]; row["ECE (Platt)"] = round(r["ECE"], 4); row["Brier (Platt)"] = round(r["Brier"], 4)
-        if name.startswith("D") and ("D (eksternal)", "Platt") in cal_pl:
-            r = cal_pl[("D (eksternal)", "Platt")]; row["ECE (Platt)"] = round(r["ECE"], 4); row["Brier (Platt)"] = round(r["Brier"], 4)
+        if name.startswith("X") and ("X (eksternal)", "Platt") in cal_pl:
+            r = cal_pl[("X (eksternal)", "Platt")]; row["ECE (Platt)"] = round(r["ECE"], 4); row["Brier (Platt)"] = round(r["Brier"], 4)
         t4.append(row)
     T4 = pd.DataFrame(t4); T4.to_csv(out / "tabel4_hasil.csv", index=False)
     C = pd.DataFrame(cal_rows).round(4); C.to_csv(out / "tabel_kalibrasi.csv", index=False)
