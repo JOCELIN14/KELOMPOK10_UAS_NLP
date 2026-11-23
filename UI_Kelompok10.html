@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audit Kejujuran Akurasi SVM & Deteksi Hoaks — UAS_Kelompok 10 NLP</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+tailwind.config={theme:{extend:{colors:{
+rose:{50:'#f7f6f1',100:'#efede5',200:'#e4e1d6',300:'#d3cfc2',400:'#a39f93',500:'#77746a',600:'#5a5850',700:'#403f39',800:'#2a2a26',900:'#1c1c1a'},
+rose:{50:'#f8f1f1',100:'#f0e4e5',200:'#e2c9cc',300:'#cfa3a8',400:'#b06b73',500:'#8f3d48',600:'#7a2432',700:'#6b1d2b',800:'#591725',900:'#451220'},
+blue:{50:'#f8f1f1',100:'#f0e4e5',200:'#e2c9cc',400:'#b06b73',500:'#8f3d48',600:'#7a2432',700:'#6b1d2b',800:'#591725',900:'#451220',950:'#2f0c15'},
+indigo:{50:'#f7f6f1',200:'#e4e1d6',700:'#403f39'},
+amber:{50:'#f7f6f1',200:'#e4e1d6',500:'#a39f93',800:'#403f39',900:'#2a2a26'},
+emerald:{50:'#f7f6f1',200:'#e4e1d6',600:'#2a2a26',700:'#2a2a26',800:'#2a2a26',900:'#1c1c1a'}}}}}
+</script>
+  <!-- Chart.js untuk visualisasi grafik interaktif -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body{font-family:'Arial',system-ui,sans-serif;background:#f3e6ea;color:#1c1c1a;margin:0}
+    .font-mono, code{font-family: 'Arial', 'Lucida Console', monospace}
+    .hero{background:#eca0a0;border-bottom:1px solid #fdd5e3;}
+    .nav-item{display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 10px;border-radius:4px;font-size:20px;color:#403f39;text-align:left;transition:background .15s}
+    .nav-item:hover{background:#f6d1eb}
+    .nav-item.active{background:#f4bec5;color:#6b1d2b;font-weight:600;border-left:2px solid #7a2432}
+    .nav-item span{font-size:11px;color:#675e61;font-family: 'Arial', monospace}
+    .btn-ghost{padding:4px 10px;font-size:12px;border:1px solid #ffc3d4;border-radius:4px;background:#f4e8ec;color:#403f39;transition:all .15s}
+    .btn-ghost:hover{background:#f9e0eb;border-color:#7a2432;color:#6b1d2b}
+    .stat-n{font-family:'Arial', 'Lucida Console', monospace;font-size:25px;line-height:1.15;font-weight:500;letter-spacing:-.02em;color:#1c1c1a}
+    .regex-rules-arial,
+    .regex-rules-arial code,
+    .regex-rules-arial .font-mono{font-family: "Arial"}
+    .hasil-klasifikasi-panel,
+    .hasil-klasifikasi-panel code,
+    .hasil-klasifikasi-panel .font-mono{font-family: "Arial"}
+    .skenario-pengujian,
+    .skenario-pengujian code,
+    .skenario-pengujian .font-mono{font-family: "Arial"}
+    .tabel-uji-lintas,
+    .tabel-uji-lintas code,
+    .tabel-uji-lintas .font-mono{font-family: "Arial"}
+  </style>
+</head>
+<body class="min-h-screen lg:flex">
+
+  <!-- SIDEBAR -->
+  <aside class="w-full lg:w-64 lg:h-screen lg:sticky lg:top-0 shrink-0 border-b lg:border-b-0 lg:border-r border-rose-200 bg-rose-50 px-6 py-6 flex flex-col gap-6 overflow-y-auto">
+    <div class="pb-4 border-b border-rose-200">
+      <div class="text-3xl font-semibold tracking-tight text-rose-900">UJIAN<span class="text-rose-700"> NLP</span></div>
+      <div class="text-l text-rose-500 mt-0.5">KELOMPOK 10</div>
+    </div>
+
+    <nav class="space-y-1">
+      <button id="btn-tab-1" onclick="switchTab(1)" class="nav-item active">Uji Teks <span></span></button>
+      <button id="btn-tab-2" onclick="switchTab(2)" class="nav-item">Audit Sumber &amp; Artefak </button>
+      <button id="btn-tab-3" onclick="switchTab(3)" class="nav-item">Skenario &amp; Kalibrasi <span></span></button>
+    </nav>
+
+    <div class="hidden lg:block pt-4 border-t border-rose-200">
+      <div class="text-[11px] font-semibold uppercase tracking-wider text-rose-500 mb-2">Korpus Sumber (n = 23.957)</div>
+      <ul class="text-m text-rose-700 divide-y divide-rose-100">
+        <li class="py-1.5 flex items-center justify-between gap-2"><span>TurnBackHoax.id</span><span class="font-mono text-rose-800">11.816</span></li>
+        <li class="py-1.5 flex items-center justify-between gap-2"><span>Kompas</span><span class="font-mono text-rose-600">4.499</span></li>
+        <li class="py-1.5 flex items-center justify-between gap-2"><span>Antara News</span><span class="font-mono text-rose-600">4.066</span></li>
+        <li class="py-1.5 flex items-center justify-between gap-2"><span>Detik.com</span><span class="font-mono text-rose-600">3.576</span></li>
+      </ul>
+    </div>
+
+    <div class="hidden lg:block mt-auto pt-4 border-t border-rose-200">
+      <div class="text-[11px] font-semibold uppercase tracking-wider text-rose-500 mb-1.5">Kelompok 10</div>
+      <ul class="text-m text-rose-700 space-y-1">
+        <li>Jocelin - 535240065</li>
+        <li>Edward Imanuel - 535249204</li>
+        <li>Alvin Sanjaya - 535240115</li>
+      </ul>
+    </div>
+  </aside>
+
+  <div class="flex-1 min-w-0 flex flex-col">
+  <header class="hero">
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10 py-6 lg:py-8">
+      <h1 class="text-xl sm:text-2xl font-semibold tracking-tight text-rose-900">Audit Kejujuran Akurasi SVM &amp; Deteksi Hoaks</h1>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mt-6 pt-5 border-t border-rose-100">
+        <div><div class="stat-n">23.957</div><div class="text-m text-rose-500 mt-1"> ada 4 sumber</div></div>
+        <div><div class="stat-n">11.816</div><div class="text-m text-rose-500 mt-1"> Hoaks (49,3%)</div></div>
+        <div><div class="stat-n">12.141</div><div class="text-m text-rose-500 mt-1"> Fakta (50,7%)</div></div>
+        <div><div class="stat-n">98,27%</div><div class="text-m text-rose-500 mt-1">Akurasi baseline (Skenario A)</div></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-5 sm:px-8 lg:px-10 py-6">
+    <section id="tab-1" class="space-y-6">
+      <div class="pb-3 border-b border-rose-200 flex flex-wrap items-center justify-between gap-3">
+        <span class="text-m font-medium text-rose-600">Simulasi pembersihan artefak &amp; prediksi teks satuan</span>
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-m text-rose-500">Contoh teks:</span>
+          <button onclick="loadPreset('hoax_artefak')" class="btn-ghost">Hoaks + Artefak</button>
+          <button onclick="loadPreset('fakta_artefak')" class="btn-ghost">Fakta + Dateline</button>
+          <button onclick="loadPreset('medsos_bersih')" class="btn-ghost">Medsos Polos</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1  gap-8">
+        <!-- Kolom Kiri: Input & Pembersihan -->
+        <div class="space-y-6">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label for="input-news" class="text-m font-semibold uppercase tracking-wider text-rose-600">
+                Input Teks Kamu
+              </label>
+              <button onclick="clearInput()" class="text-m text-rose-500 hover:text-rose-900 underline">Reset</button>
+            </div>
+            <textarea id="input-news" rows="5" oninput="analyzeText()" class="w-full rounded border border-rose-300 p-3 text-sm text-rose-800 focus:border-rose-700 outline-none transition" placeholder="Tempelkan judul atau isi berita di sini..."></textarea>
+            <div class="mt-2 flex items-center justify-between">
+              <span id="char-word-count" class="font-mono text-m text-rose-500">0 karakter • 0 kata</span>
+              <button onclick="analyzeText()" class="px-3.5 py-2 bg-rose-700 hover:bg-rose-800 text-white text-m font-semibold rounded transition">
+                Analisis &amp; Prediksi
+              </button>
+            </div>
+          </div>
+
+          <!-- Perbandingan Teks Bersih & Artefak yang Dihapus -->
+          <div class="pt-5 border-t border-rose-200 space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-m font-semibold uppercase tracking-wider text-rose-600">Keluaran Pembersihan (<code class="text-rose-800">clean_text</code>)</h3>
+              <span id="artifact-badge" class="font-mono text-m text-rose-600">0 artefak dihapus</span>
+            </div>
+
+            <div id="clean-text-box" class="py-2.5 px-3 bg-rose-50 text-sm text-rose-800 min-h-[60px] leading-relaxed">
+              Teks bersih
+            </div>
+
+            <div class="pt-2 border-t border-rose-100">
+              <div class="text-s text-rose-500 mb-1.5">Artefak terhapus oleh regex:</div>
+              <div id="removed-artifacts-list" class="flex flex-wrap gap">
+                <span class="text-m text-rose-400 italic">Tidak ada artefak sumber terdeteksi.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kolom Kanan: Output Klasifikasi SVM & Kalibrasi Confidence -->
+        <div class="hasil-klasifikasi-panel pt-6 border-t border-rose-200 space-y-5">
+          <div class="flex items-center justify-between border-b border-rose-200 pb-2.5">
+            <h3 class="text-m font-bold uppercase tracking-wider text-rose-800">Hasil Klasifikasi (Skenario B*)</h3>
+            <span class="font-mono text-[11px] text-rose-800">C=1.0 · n-gram(1,2)</span>
+          </div>
+
+          <!-- Ringkasan Prediksi Proporsional -->
+          <div id="prediction-banner" class="pb-4 border-b border-rose-200 flex items-baseline justify-between">
+            <div>
+              <div class="text-m text-rose-500">Keputusan Kelas</div>
+              <div id="pred-label" class="text-lg font-semibold text-rose-800 mt-0.5">MENUNGGU TEKS</div>
+            </div>
+            <div class="center">
+              <div class="text-m text-rose-500">Margin Hyperplane <em>f(x)</em></div>
+              <div id="raw-margin" class="text-lg font-mono font-semibold text-rose-800 mt-0.5">0.00</div>
+            </div>
+          </div>
+
+          <!-- Perbandingan 3 Metode Confidence -->
+          <div class="space-y-2">
+            <div class="text-m font-semibold uppercase tracking-wider text-rose-600">
+              Probabilitas &amp; Kalibrasi Confidence
+            </div>
+
+            <div class="divide-y divide-rose-200 text-m text-rose-700">
+              <!-- 1. SVM Mentah -->
+              <div class="py-2.5">
+                <div class="flex justify-between items-baseline">
+                  <span class="font-semibold text-rose-800">1. Sigmoid Naif (SVM Mentah)</span>
+                  <span id="conf-raw-val" class="font-mono text-sm font-semibold text-rose-700">50.0%</span>
+                </div>
+                <p class="text-m text-rose-600 mt-0.5">
+                  Underconfident (<span class="font-mono text-rose-800">ECE = 0,2079</span>). Skor margin belum terkalibrasi.
+                </p>
+              </div>
+
+              <!-- 2. Platt Scaling -->
+              <div class="py-2.5">
+                <div class="flex justify-between items-baseline">
+                  <span class="font-semibold text-rose-800">2. Platt Scaling (Sigmoid Terlatih)</span>
+                  <span id="conf-platt-val" class="font-mono text-sm font-semibold text-rose-900">50.0%</span>
+                </div>
+                <p class="text-m text-rose-600 mt-0.5">
+                  <span class="font-mono text-rose-800">ECE = 0,0044</span> · <span class="font-mono text-rose-800">Brier = 0,0117</span>. Selaras dengan akurasi aktual.
+                </p>
+              </div>
+
+              <!-- 3. Isotonic Regression -->
+              <div class="py-2.5">
+                <div class="flex justify-between items-baseline">
+                  <span class="font-semibold text-rose-800">3. Isotonic Regression</span>
+                  <span id="conf-iso-val" class="font-mono text-sm font-semibold text-rose-900">50.0%</span>
+                </div>
+                <p class="text-m text-rose-600 mt-0.5">
+                  <span class="font-mono text-rose-800">ECE = 0,0025</span> · <span class="font-mono text-rose-800">Brier = 0,0118</span>. Kalibrasi non-parametrik.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Kata Kunci Pemicu -->
+          <div class="pt-3 border-t border-rose-200">
+            <div class="text-m font-semibold text-rose-600 mb-1.5">Token Kontributor Bobot (<code class="text-rose-800">w_i</code>):</div>
+            <p id="matched-features" class="text-m text-rose-600 leading-relaxed">
+              Belum ada fitur dominan terdeteksi.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 2: AUDIT SUMBER & PEMBERSIHAN ARTEFAK                             -->
+    <!-- ===================================================================== -->
+    <section id="tab-2" class="hidden space-y-6">
+      <div class="pb-4 border-b border-rose-200 flex items-start gap-3">
+        <div class="font-mono text-m font-semibold text-rose-700 border border-rose-300 px-1.5 py-0.5 rounded shrink-0 mt-0.5">CONFOUNDED</div>
+        <p class="text-m sm:text-sm text-rose-700 leading-relaxed">
+          Seluruh kelas <strong>Hoaks (11.816)</strong> berasal eksklusif dari <strong>TurnBackHoax.id</strong>, sedangkan kelas <strong>Fakta (12.141)</strong> berasal dari Antara, Kompas, dan Detik.com. Tanpa sanitasi artefak, LinearSVC mencapai akurasi semu <span class="font-mono">98,27%</span> dari penanda redaksional penerbit.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Tabel Silang & Aturan Regex -->
+        <div class="regex-rules-arial lg:col-span-6 space-y-6">
+          <div>
+            <div class="flex items-baseline justify-between mb-2">
+              <h3 class="text-sm font-semibold text-rose-900">Tabel 2. Crosstab Sumber × Label</h3>
+              <code class="text-m text-rose-500">audit_and_clean()</code>
+            </div>
+            <div class="overflow-x-auto border-t border-b border-rose-300">
+              <table class="w-full text-m sm:text-sm text-left border-collapse">
+                <thead>
+                  <tr class="border-b border-rose-300 text-rose-600 text-m uppercase bg-rose-100">
+                    <th class="py-2 px-3">Sumber Media</th>
+                    <th class="py-2 px-3 text-right">Fakta (0)</th>
+                    <th class="py-2 px-3 text-right">Hoaks (1)</th>
+                    <th class="py-2 px-3 text-right">Proporsi</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-rose-200">
+                  <tr>
+                    <td class="py-2 px-3 font-medium">Antara News</td>
+                    <td class="py-2 px-3 text-right font-mono">4.066</td>
+                    <td class="py-2 px-3 text-right font-mono text-rose-400">0</td>
+                    <td class="py-2 px-3 text-right font-mono text-m text-rose-600">16,97%</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-3 font-medium">Kompas</td>
+                    <td class="py-2 px-3 text-right font-mono">4.499</td>
+                    <td class="py-2 px-3 text-right font-mono text-rose-400">0</td>
+                    <td class="py-2 px-3 text-right font-mono text-m text-rose-600">18,78%</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-3 font-medium">Detik.com</td>
+                    <td class="py-2 px-3 text-right font-mono">3.576</td>
+                    <td class="py-2 px-3 text-right font-mono text-rose-400">0</td>
+                    <td class="py-2 px-3 text-right font-mono text-m text-rose-600">14,93%</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-3 font-medium text-rose-800">TurnBackHoax.id</td>
+                    <td class="py-2 px-3 text-right font-mono text-rose-400">0</td>
+                    <td class="py-2 px-3 text-right font-mono text-rose-700 font-semibold">11.816</td>
+                    <td class="py-2 px-3 text-right font-mono text-m text-rose-700">49,32%</td>
+                  </tr>
+                  <tr class="border-t border-rose-300 font-semibold text-rose-900 bg-rose-300">
+                    <td class="py-2 px-3">Total</td>
+                    <td class="py-2 px-3 text-right font-mono">12.141</td>
+                    <td class="py-2 px-3 text-right font-mono">11.816</td>
+                    <td class="py-2 px-3 text-right font-mono text-m">100,00%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Daftar 6 Aturan Regex -->
+          <div class="regex-rules-arial pt-2">
+            <h3 class="text-sm font-semibold text-rose-900 mb-1">Aturan Sanitasi Regex (<code class="text-m">RULES</code>)</h3>
+            <div class=" divide-y divide-rose-200 text-m">
+              <div class="py-2 flex justify-between items-center gap-2">
+                <div><code class="font-semibold text-rose-800">1. url</code> — Tautan <code>http://</code>, <code>https://</code>, <code>www.</code></div>
+                <span class="font-mono text-[11px] text-rose-500 shrink-0">AKTIF</span>
+              </div>
+              <div class="py-2 flex justify-between items-center gap-2">
+                <div><code class="font-semibold text-rose-800">2. dateline_media</code> — Kota + media (mis. <code>JAKARTA, KOMPAS.com -</code>)</div>
+                <span class="font-mono text-[11px] text-rose-500 shrink-0">AKTIF</span>
+              </div>
+              <div class="py-2 flex justify-between items-center gap-2">
+                <div><code class="font-semibold text-rose-800">3. dateline_kota</code> — Awalan 30 kota besar Indonesia + tanda pisah</div>
+                <span class="font-mono text-[11px] text-rose-500 shrink-0">AKTIF</span>
+              </div>
+              <div class="py-2 flex justify-between items-center gap-2">
+                <div><code class="font-semibold text-rose-800">4. label_verifikasi</code> — Tag <code>[HOAKS]</code>, <code>[SALAH]</code>, <code>[PENIPUAN]</code>, <code>[FAKTA]</code></div>
+                <span class="font-mono text-[11px] text-rose-500 shrink-0">AKTIF</span>
+              </div>
+              <div class="py-2 flex justify-between items-center gap-2">
+                <div><code class="font-semibold text-rose-800">5. nama_media</code> — Penyebutan domain/brand media &amp; Mafindo</div>
+                <span class="font-mono text-[11px] text-rose-500 shrink-0">AKTIF</span>
+              </div>
+              <div class="py-2 flex justify-between items-center gap-2">
+                <div><code class="font-semibold text-rose-800">6. templat_turnbackhoax</code> — Header <code>Narasi:</code>, <code>Penjelasan:</code>, <code>Referensi:</code></div>
+                <span class="font-mono text-[11px] text-rose-500 shrink-0">AKTIF</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-6 lg:border-l lg:border-rose-200 lg:pl-8 flex flex-col">
+          <div class="mb-3">
+            <h3 class="text-sm font-semibold text-rose-900">Koefisien Fitur Terkuat LinearSVC (<code class="text-m">top_fitur.csv</code>)</h3>
+          </div>
+          <div class="relative flex-1 min-h-[420px]">
+            <canvas id="topFeaturesChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- TAB 3: HASIL SKENARIO (A–E) & KALIBRASI                               -->
+    <!-- ===================================================================== -->
+    <section id="tab-3" class="hidden space-y-6">
+      <!-- Tabel 4 -->
+      <div>
+        <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-3">
+          <div>
+            <h3 class="text-sm font-semibold text-rose-900">Tabel 4. Evaluasi Lintas Skenario (A–E)</h3>
+          </div>
+          <span class="font-mono text-m text-rose-600">
+            Baseline mayoritas: 50,7% (mentah) · 51,4% (bersih)
+          </span>
+        </div>
+
+        <div class="skenario-pengujian overflow-x-auto border-t border-b border-rose-300">
+          <table class="w-full text-m sm:text-sm text-left border-collapse">
+            <thead>
+              <tr class="border-b border-rose-300 text-rose-600 text-m uppercase bg-rose-50">
+                <th class="py-2.5 px-3">Skenario Pengujian</th>
+                <th class="py-2.5 px-3 text-right">Akurasi</th>
+                <th class="py-2.5 px-3 text-right">Presisi</th>
+                <th class="py-2.5 px-3 text-right">Recall</th>
+                <th class="py-2.5 px-3 text-right">F1-Score</th>
+                <th class="py-2.5 px-3 text-right">Delta vs A</th>
+              </tr>
+            </thead>
+            <tbody id="scenario-table-body" class="divide-y divide-rose-200">
+              <!-- Diisi via JavaScript -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Catatan Interpretasi Skenario -->
+        <div id="scenario-detail-box" class="mt-3 py-2.5 px-3 bg-rose-50 border-l-1 border-rose-600 text-m sm:text-sm text-rose-800">
+          <!-- Diisi via JavaScript -->
+        </div>
+      </div>
+
+      <!-- Grid Bawah: Breakdown Skenario C & Reliability Diagram -->
+      <div class="pt-4 border-t border-rose-200 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Breakdown Skenario C (Tabel 5) -->
+        <div class="lg:col-span-5 flex flex-col justify-between">
+          <div>
+            <h3 class="text-sm font-semibold text-rose-900 mb-1">Tabel 5. Uji Lintas-Sumber (Skenario C)</h3>
+            <div class="tabel-uji-lintas overflow-x-auto border-t border-b border-rose-300">
+              <table class="w-full text-m text-left border-collapse">
+                <thead>
+                  <tr class="border-b border-rose-300 text-rose-600 uppercase bg-rose-50">
+                    <th class="py-2 px-2.5">Sumber Ditahan</th> 
+                    <th class="py-2 px-2.5 text-right">n Uji</th>
+                    <th class="py-2 px-2.5 text-right">Akurasi</th>
+                    <th class="py-2 px-2.5 text-right">Presisi</th>
+                    <th class="py-2 px-2.5 text-right">F1</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-rose-200">
+                  <tr>
+                    <td class="py-2 px-2.5 font-medium">Antara News</td>
+                    <td class="py-2 px-2.5 text-right font-mono">6.346</td>
+                    <td class="py-2 px-2.5 text-right font-mono">96,14%</td>
+                    <td class="py-2 px-2.5 text-right font-mono">91,54%</td>
+                    <td class="py-2 px-2.5 text-right font-mono">94,84%</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-2.5 font-medium">Kompas</td>
+                    <td class="py-2 px-2.5 text-right font-mono">6.761</td>
+                    <td class="py-2 px-2.5 text-right font-mono">97,78%</td>
+                    <td class="py-2 px-2.5 text-right font-mono">95,26%</td>
+                    <td class="py-2 px-2.5 text-right font-mono">96,78%</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2 px-2.5 font-semibold text-rose-900">Detik.com</td>
+                    <td class="py-2 px-2.5 text-right font-mono">5.845</td>
+                    <td class="py-2 px-2.5 text-right font-mono font-semibold">87,13%</td>
+                    <td class="py-2 px-2.5 text-right font-mono font-semibold text-rose-700">75,57%</td>
+                    <td class="py-2 px-2.5 text-right font-mono">85,80%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-rose-200 text-m text-rose-700 leading-relaxed">
+            <strong>Catatan Detik.com:</strong> Terjadi <span class="font-mono font-semibold">734</span> <em>False Positive</em> (fakta diklasifikasikan hoaks) sehingga presisi turun ke <span class="font-mono">75,57%</span> akibat gaya penulisan berita singkat yang berbeda dari Antara/Kompas.
+          </div>
+        </div>
+
+        <!-- Reliability Diagram -->
+        <div class="lg:col-span-7 lg:border-l lg:border-rose-200 lg:pl-8">
+          <div class="mb-3">
+            <h3 class="text-sm font-semibold text-rose-900">Reliability Diagram &amp; Evaluasi Kalibrasi (Skenario B*)</h3>
+            <p class="text-m text-rose-500">Perbandingan kurva probabilitas prediksi terhadap akurasi empiris.</p>
+          </div>
+
+          <!-- Ringkasan Tabel 6 -->
+          <div class="grid grid-cols-3 gap-4 mb-4 py-2.5 border-t border-b border-rose-200 text-m">
+            <div>
+              <div class="font-semibold text-rose-800">SVM Mentah</div>
+              <div class="text-rose-600 mt-0.5">ECE: <span class="font-mono font-semibold text-rose-700">0,2079</span></div>
+              <div class="text-rose-600">Brier: <span class="font-mono font-semibold">0,0599</span></div>
+            </div>
+            <div>
+              <div class="font-semibold text-rose-800">Platt Scaling</div>
+              <div class="text-rose-600 mt-0.5">ECE: <span class="font-mono font-semibold text-rose-900">0,0044</span></div>
+              <div class="text-rose-600">Brier: <span class="font-mono font-semibold">0,0117</span></div>
+            </div>
+            <div>
+              <div class="font-semibold text-rose-800">Isotonic Regression</div>
+              <div class="text-rose-600 mt-0.5">ECE: <span class="font-mono font-semibold text-rose-900">0,0025</span></div>
+              <div class="text-rose-600">Brier: <span class="font-mono font-semibold">0,0118</span></div>
+            </div>
+          </div>
+
+          <div class="relative h-[280px] w-full">
+            <canvas id="reliabilityChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-rose-200 py-3.5 mt-8">
+    <div class="max-w-7xl mx-auto px-5 sm:px-8 lg:px-10 flex flex-col sm:flex-row items-center justify-between text-m text-rose-500 gap-2">
+      <div>
+        <em>"Audit Kejujuran Akurasi Support Vector Machine pada Deteksi Hoaks Berbahasa Indonesia: Analisis Artefak Sumber, Evaluasi Lintas-Skenario, dan Kalibrasi Confidence"</em>
+      </div>
+      <div>
+        Kelompok 10: Jocelin • Edward Imanuel • Alvin Sanjaya
+      </div>
+    </div>
+  </footer>
+  </div>
+
+  <!-- JAVASCRIPT LOGIKA SIMULASI & VISUALISASI -->
+  <script>
+    // -------------------------------------------------------------------------
+    // 1. Aturan Regex Pembersihan Artefak (identik dengan eksperimen_hoaks_svm.py)
+    // -------------------------------------------------------------------------
+    const CITY = "jakarta|bandung|surabaya|semarang|yogyakarta|medan|makassar|denpasar|palembang|bogor|depok|bekasi|" +
+                 "tangerang|malang|solo|surakarta|batam|padang|pekanbaru|manado|balikpapan|samarinda|banjarmasin|" +
+                 "pontianak|mataram|kupang|jayapura|ambon|palu|kendari|banda aceh";
+    const DETIK = "detik(?:\\.com|com|news|finance|inet|health|sport|sports|food|edu|travel|oto|hot|jabar|jatim|jateng|sumut|bali)";
+
+    const RULES = [
+      { name: "url", regex: /https?:\/\/\S+|www\.\S+/gi },
+      { name: "dateline_media", regex: new RegExp(`^\\s*(?:${CITY})?[\\s,\\.]*\\(?(?:antara|kompas\\.com|kompas\\.id|${DETIK})\\)?\\s*[-–—:]+\\s*`, "gi") },
+      { name: "dateline_kota", regex: new RegExp(`^\\s*(?:${CITY})\\s*(?:,|\\()?[^-–—\\n]{0,30}[-–—]\\s+`, "gi") },
+      { name: "label_verifikasi", regex: /\[\s*(?:hoax|hoaks|salah|disinformasi|misinformasi|penipuan|fitnah|klarifikasi|fakta|valid|benar)\s*\]/gi },
+      { name: "nama_media", regex: new RegExp(`\\b(?:antaranews(?:\\.com)?|antara news|kompas(?:\\.com|\\.id)?|${DETIK}|turnbackhoax(?:\\.id)?|mafindo)\\b`, "gi") },
+      { name: "templat_turnbackhoax", regex: /\b(?:kategori|narasi|penjelasan|referensi|hasil periksa fakta|hasil cek fakta|kesimpulan)\s*:/gi }
+    ];
+
+    const FEATURE_WEIGHTS = {
+      "2024": 2.80, "beredar": 2.37, "facebook": 2.12, "arsip": 2.04,
+      "benarkah": 1.97, "yg": 1.90, "narasi": 1.81, "anda": 1.49,
+      "klaim": 1.30, "tau": 1.02, "video": 1.46,
+      "gratis": 1.04, "pendaftaran": 1.23, 
+      "kata": -3.64, "ia": -2.50, "mengatakan": -2.31, "ujar": -2.10,
+      "jakarta": -2.01, "selasa": -1.94, "rabu": -1.85, "kamis": -1.81,
+      "menjelaskan": -1.48, "ujarnya": -1.29, "bantuan" : 1.21
+    };
+
+    const PRESETS = {
+      hoax_artefak: "[PENIPUAN] Beredar narasi di Facebook 2024 bahwa link pendaftaran dana bantuan pemerintah gratis tanpa syarat. Benarkah klaim yg viral tersebut? Penjelasan: Informasi itu tidak benar. Referensi: https://turnbackhoax.id/2024/09/13/penipuan-dana-bantuan/",
+      fakta_artefak: "JAKARTA, KOMPAS.com - Menteri Keuangan menjelaskan bahwa pertumbuhan ekonomi Indonesia pada kuartal ketiga tetap terjaga. Ia mengatakan hal tersebut dalam konferensi pers di Jakarta pada Selasa lalu, ujarnya kepada wartawan.",
+      medsos_bersih: "Beredar pesan berantai yg menyebutkan bahwa air rebusan bawang putih bisa menyembuhkan semua penyakit jantung dalam 3 hari. Apakah anda tau dan percaya dengan klaim viral ini?"
+    };
+// Navigasi
+    let chartsInitialized = false;
+
+    function switchTab(tabIndex) {
+      [1, 2, 3].forEach(i => {
+        document.getElementById(`tab-${i}`).classList.toggle("hidden", i !== tabIndex);
+        document.getElementById(`btn-tab-${i}`).classList.toggle("active", i === tabIndex);
+      });
+
+      if (!chartsInitialized && (tabIndex === 2 || tabIndex === 3)) {
+        initCharts();
+        chartsInitialized = true;
+      }
+    }
+ //Simulasi Analisis Teks & Pembersihan Artefak (Tab 1)
+
+    function loadPreset(key) {
+      document.getElementById("input-news").value = PRESETS[key];
+      analyzeText();
+    }
+
+    function clearInput() {
+      document.getElementById("input-news").value = "";
+      analyzeText();
+    }
+
+    function analyzeText() {
+      const raw = document.getElementById("input-news").value;
+      const wordsRaw = raw.trim() ? raw.trim().split(/\s+/) : [];
+      document.getElementById("char-word-count").textContent = `${raw.length} karakter • ${wordsRaw.length} kata`;
+
+      if (!raw.trim()) {
+        document.getElementById("clean-text-box").textContent = "Teks bersih akan muncul di sini...";
+        document.getElementById("artifact-badge").textContent = "0 artefak dihapus";
+        document.getElementById("removed-artifacts-list").innerHTML = '<span class="text-m text-rose-400 italic">Tidak ada artefak sumber terdeteksi.</span>';
+        document.getElementById("pred-label").textContent = "Hasil akan muncul disini";
+        document.getElementById("pred-label").className = "text-lg font-semibold text-rose-800 mt-0.5";
+        document.getElementById("raw-margin").textContent = "0.00";
+        updateConfidenceBars(0.5, 0.5, 0.5);
+        document.getElementById("matched-features").textContent = "Belum ada fitur dominan terdeteksi.";
+        return;
+      }
+
+      let cleaned = raw;
+      const removedItems = [];
+      RULES.forEach(rule => {
+        const matches = cleaned.match(rule.regex);
+        if (matches) {
+          matches.forEach(m => {
+            removedItems.push({ rule: rule.name, text: m.trim() });
+          });
+          cleaned = cleaned.replace(rule.regex, " ");
+        }
+      });
+      cleaned = cleaned.replace(/\s+/g, " ").trim();
+
+      document.getElementById("clean-text-box").textContent = cleaned || "(Semua teks terhapus karena hanya berisi artefak)";
+      document.getElementById("artifact-badge").textContent = `${removedItems.length} artefak dihapus`;
+
+      const removedContainer = document.getElementById("removed-artifacts-list");
+      if (removedItems.length === 0) {
+        removedContainer.innerHTML = '<span class="text-m text-rose-600"> tidak ditemukan kecocokan regex.</span>';
+      } else {
+        removedContainer.innerHTML = removedItems.map(item => `<span class="text-xs text-rose-500"><code class="text-[11px] text-rose-800 font-semibold">${item.rule}</code>: <span class="line-through text-rose-800">${escapeHtml(item.text.slice(0, 38))}${item.text.length > 38 ? "…" : ""}</span></span>`).join(" ");
+      }
+
+      const tokens = cleaned.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+      let score = 0.05;
+      const matched = [];
+      const seen = new Set();
+
+      tokens.forEach(tok => {
+        if (FEATURE_WEIGHTS[tok] !== undefined) {
+          score += FEATURE_WEIGHTS[tok] * 0.42;
+          if (!seen.has(tok)) {
+            seen.add(tok);
+            matched.push({ word: tok, weight: FEATURE_WEIGHTS[tok] });
+          }
+        }
+      });
+
+      if (cleaned.includes("?")) score += 0.35;
+      if (cleaned.includes("!")) score += 0.30;
+
+      score = Math.max(-3.2, Math.min(3.2, score));
+
+      const pRawHoax = 1 / (1 + Math.exp(-score * 0.55));
+      const pPlattHoax = 1 / (1 + Math.exp(-score * 1.45));
+      const pIsoHoax = Math.max(0.01, Math.min(0.99, 1 / (1 + Math.exp(-score * 1.52))));
+
+      const isHoax = pPlattHoax >= 0.5;
+      const confRaw = isHoax ? pRawHoax : (1 - pRawHoax);
+      const confPlatt = isHoax ? pPlattHoax : (1 - pPlattHoax);
+      const confIso = isHoax ? pIsoHoax : (1 - pIsoHoax);
+
+      const labelEl = document.getElementById("pred-label");
+      document.getElementById("raw-margin").textContent = (score >= 0 ? "+" : "") + score.toFixed(2);
+
+      if (isHoax) {
+        labelEl.textContent = "HOAKS (Kelas 1)";
+        labelEl.className = "text-lg font-semibold text-rose-700 mt-0.5";
+      } else {
+        labelEl.textContent = "FAKTA (Kelas 0)";
+        labelEl.className = "text-lg font-semibold text-rose-900 mt-0.5";
+      }
+
+      updateConfidenceBars(confRaw, confPlatt, confIso);
+
+      const featContainer = document.getElementById("matched-features");
+      if (matched.length === 0) {
+        featContainer.textContent = "Tidak ada kata kunci bobot ekstrem; keputusan memakai distribusi TF-IDF umum.";
+      } else {
+        matched.sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight));
+        featContainer.innerHTML = matched.map(m => {
+          const pos = m.weight > 0;
+          const colorCls = pos ? "text-rose-700 font-semibold" : "text-rose-800 font-semibold";
+          return `<span class="${colorCls}">${escapeHtml(m.word)}</span> <span class="font-mono text-rose-500">(${pos ? "+" : ""}${m.weight.toFixed(2)})</span>`;
+        }).join(", ");
+      }
+    }
+
+    function updateConfidenceBars(raw, platt, iso) {
+      document.getElementById("conf-raw-val").textContent = (raw * 100).toFixed(1) + "%";
+      document.getElementById("conf-platt-val").textContent = (platt * 100).toFixed(1) + "%";
+      document.getElementById("conf-iso-val").textContent = (iso * 100).toFixed(1) + "%";
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+    }
+
+    // 4. Data & Interaksi Tabel 4 (Tab 3)
+    const SCENARIO_DATA = [
+      {
+        code: "A",
+        name: "A. Baseline acak (Data mentah, 1.000 fitur, C=1)",
+        acc: "98,27%", prec: "98,06%", rec: "98,43%", f1: "98,25%", drop: "0,00%",
+        note: "Akurasi 'naif' pada data mentah sebelum pembersihan artefak. Angka 98,27% sebagian disumbang oleh penanda khas penerbit (URL, dateline, dan tag [HOAKS])."
+      },
+      {
+        code: "B",
+        name: "B. Artefak dibersihkan + deduplikasi (1.000 fitur, C=1)",
+        acc: "96,81%", prec: "97,09%", rec: "96,33%", f1: "96,71%", drop: "1,48%",
+        note: "Perbandingan setara terhadap Skenario A. Penghapusan artefak dan duplikat menurunkan akurasi sebesar 1,46 poin persentase (1,48% relatif)."
+      },
+      {
+        code: "B*",
+        name: "B*. Artefak dibersihkan + tuning (20.000 fitur, ngram 1-2, C=1)",
+        acc: "98,51%", prec: "98,51%", rec: "98,43%", f1: "98,47%", drop: "-0,25%",
+        note: "Model terbaik pada pengujian internal setelah penambahan bigram (1,2) dan 20.000 fitur. Kalibrasi Platt Scaling menurunkan ECE dari 0,2079 menjadi 0,0044."
+      },
+      {
+        code: "C",
+        name: "C. Uji lintas-sumber (Rerata sumber fakta ditahan)",
+        acc: "93,68%", prec: "87,46%", rec: "98,65%", f1: "92,47%", drop: "4,66%",
+        note: "Mengukur generalisasi saat satu portal berita fakta (Antara, Kompas, atau Detik) ditahan sepenuhnya dari data latih. Presisi turun ke 87,46% karena perbedaan gaya redaksional."
+      },
+      {
+        code: "D",
+        name: "D. Probe fitur non-isi (9 fitur statistik & tanda baca)",
+        acc: "92,18%", prec: "92,67%", rec: "91,13%", f1: "91,89%", drop: "6,20%",
+        note: "Hanya memakai panjang karakter, jumlah kata, rasio kapital, angka, dan tanda baca (!, ?) tanpa fitur leksikal. Akurasi 92,18% menunjukkan struktur teks saja sudah membedakan sumber."
+      },
+      {
+        code: "E",
+        name: "E. Probe 5 kata awal & 5 kata akhir (data bersih)",
+        acc: "92,44%", prec: "92,86%", rec: "91,48%", f1: "92,17%", drop: "5,94%",
+        note: "Klasifikasi hanya memakai 5 token pembuka dan 5 token penutup teks bersih. Akurasi 92,44% menandakan pola pembuka dan penutup redaksional masih menyisakan sinyal kuat."
+      }
+    ];
+
+    function renderScenarioTable() {
+      const tbody = document.getElementById("scenario-table-body");
+      tbody.innerHTML = SCENARIO_DATA.map((row, idx) => `
+        <tr onclick="selectScenario(${idx})" id="sc-row-${idx}" class="cursor-pointer hover:bg-rose-50 transition-colors ${idx === 2 ? "bg-rose-50 font-semibold" : ""}">
+          <td class="py-2.5 px-3 text-rose-900">${row.name}</td>
+          <td class="py-2.5 px-3 text-right font-mono">${row.acc}</td>
+          <td class="py-2.5 px-3 text-right font-mono">${row.prec}</td>
+          <td class="py-2.5 px-3 text-right font-mono">${row.rec}</td>
+          <td class="py-2.5 px-3 text-right font-mono">${row.f1}</td>
+          <td class="py-2.5 px-3 text-right font-mono text-m ${row.drop.startsWith("-") ? "text-rose-900" : "text-rose-700"}">${row.drop}</td>
+        </tr>
+      `).join("");
+      selectScenario(2);
+    }
+
+    function selectScenario(idx) {
+      SCENARIO_DATA.forEach((_, i) => {
+        const el = document.getElementById(`sc-row-${i}`);
+        if (i === idx) {
+          el.classList.add("bg-rose-50", "font-semibold");
+        } else {
+          el.classList.remove("bg-rose-50", "font-semibold");
+        }
+      });
+      const item = SCENARIO_DATA[idx];
+      document.getElementById("scenario-detail-box").innerHTML = `
+        <span class="font-semibold text-rose-900">${item.name}:</span>
+        <span class="text-rose-700">${item.note}</span>
+      `;
+    }
+
+//Inisialisasi Chart.js (Top Features & Reliability Diagram)
+    function initCharts() {
+      Chart.defaults.font.family = "'Calibri', sans-serif";
+      const ctxFeat = document.getElementById("topFeaturesChart").getContext("2d");
+      const featLabels = [
+        "2024 (Hoaks)", "beredar (Hoaks)", "facebook (Hoaks)", "arsip (Hoaks)",
+        "benarkah (Hoaks)", "yg (Hoaks)", "narasi (Hoaks)", "anda (Hoaks)",
+        "klaim (Hoaks)", "tau (Hoaks)",
+        "ujarnya (Fakta)", "menjelaskan (Fakta)", "kamis (Fakta)", "rabu (Fakta)",
+        "selasa (Fakta)", "jakarta (Fakta)", "ujar (Fakta)", "mengatakan (Fakta)",
+        "ia (Fakta)", "kata (Fakta)"
+      ];
+      const featValues = [
+        2.80, 2.37, 2.12, 2.04, 1.97, 1.90, 1.81, 1.49, 1.30, 1.02,
+        -1.29, -1.48, -1.81, -1.85, -1.94, -2.01, -2.10, -2.31, -2.50, -3.64
+      ];
+
+      new Chart(ctxFeat, {
+        type: "bar",
+        data: {
+          labels: featLabels,
+          datasets: [{
+            label: "Koefisien Bobot SVM Linear (w)",
+            data: featValues,
+            backgroundColor: featValues.map(v => v > 0 ? "rgba(122, 36, 50, 0.9)" : "rgba(163, 159, 147, 0.9)"),
+            borderColor: featValues.map(v => v > 0 ? "#7a2432" : "#a39f93"),
+            borderWidth: 1,
+            borderRadius: 2
+          }]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => `Bobot w: ${ctx.raw > 0 ? "+" : ""}${ctx.raw.toFixed(2)} (${ctx.raw > 0 ? "Indikator Hoaks" : "Indikator Fakta"})`
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: "#efede5" },
+              title: { display: true, text: "Nilai Koefisien SVM (Negatif = Fakta | Positif = Hoaks)", font: { size: 11 } }
+            },
+            y: {
+              ticks: { font: { size: 11 } },
+              grid: { display: false }
+            }
+          }
+        }
+      });
+
+      const ctxRel = document.getElementById("reliabilityChart").getContext("2d");
+      new Chart(ctxRel, {
+        type: "line",
+        data: {
+          datasets: [
+            {
+              label: "Kalibrasi Sempurna (Ideal)",
+              data: [{ x: 0.5, y: 0.5 }, { x: 1.0, y: 1.0 }],
+              borderColor: "#77746a",
+              borderDash: [6, 6],
+              borderWidth: 1.5,
+              pointRadius: 0,
+              fill: false
+            },
+            {
+              label: "SVM Mentah (ECE 0,2079)",
+              data: [
+                { x: 0.525, y: 0.656 }, { x: 0.576, y: 0.819 }, { x: 0.627, y: 0.974 },
+                { x: 0.680, y: 0.996 }, { x: 0.727, y: 0.998 }, { x: 0.777, y: 0.999 },
+                { x: 0.827, y: 0.999 }, { x: 0.874, y: 1.000 }, { x: 0.920, y: 1.000 },
+                { x: 0.956, y: 1.000 }
+              ],
+              borderColor: "#a39f93",
+              backgroundColor: "#a39f93",
+              borderWidth: 2,
+              pointRadius: 3.5,
+              tension: 0.15
+            },
+            {
+              label: "Platt Scaling (ECE 0,0044)",
+              data: [
+                { x: 0.521, y: 0.475 }, { x: 0.573, y: 0.531 }, { x: 0.626, y: 0.650 },
+                { x: 0.680, y: 0.773 }, { x: 0.727, y: 0.696 }, { x: 0.779, y: 0.679 },
+                { x: 0.826, y: 0.757 }, { x: 0.877, y: 0.878 }, { x: 0.931, y: 0.955 },
+                { x: 0.998, y: 0.998 }
+              ],
+              borderColor: "#7a2432",
+              backgroundColor: "#7a2432",
+              borderWidth: 2,
+              pointRadius: 3.5,
+              tension: 0.15
+            },
+            {
+              label: "Isotonic Regression (ECE 0,0025)",
+              data: [
+                { x: 0.529, y: 0.549 }, { x: 0.576, y: 0.527 }, { x: 0.626, y: 0.739 },
+                { x: 0.673, y: 0.727 }, { x: 0.724, y: 0.706 }, { x: 0.775, y: 0.643 },
+                { x: 0.826, y: 0.810 }, { x: 0.876, y: 0.902 }, { x: 0.929, y: 0.922 },
+                { x: 0.998, y: 0.998 }
+              ],
+              borderColor: "#1c1c1a",
+              backgroundColor: "#1c1c1a",
+              borderWidth: 2,
+              pointRadius: 3.5,
+              tension: 0.15
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } }
+          },
+          scales: {
+            x: {
+              type: "linear",
+              min: 0.5,
+              max: 1.0,
+              title: { display: true, text: "Rata-rata Confidence Prediksi", font: { size: 11 } },
+              grid: { color: "#efede5" }
+            },
+            y: {
+              min: 0.45,
+              max: 1.02,
+              title: { display: true, text: "Akurasi Aktual", font: { size: 11 } },
+              grid: { color: "#efede5" }
+            }
+          }
+        }
+      });
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      renderScenarioTable();
+      loadPreset("hoax_artefak");
+    });
+  </script>
+</body>
+</html>
